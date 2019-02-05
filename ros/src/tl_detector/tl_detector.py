@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import rospy
+import os
 from std_msgs.msg import Int32
 from geometry_msgs.msg import PoseStamped, Pose
 from styx_msgs.msg import TrafficLightArray, TrafficLight
@@ -62,13 +63,9 @@ class TLDetector(object):
         rospy.spin()
 
     def pose_cb(self, msg):
-	rospy.loginfo('pose_cb running')
-	print('pose_cb running')
         self.pose = msg
 
     def waypoints_cb(self, waypoints):
-	print('waypoints_cb running')
-	rospy.loginfo('waypoints_cb running')
         self.waypoints = waypoints
 	if not self.waypoints_2d:
 	    self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
@@ -85,8 +82,7 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
-	rospy.loginfo('image_cb running')
-	print('image_cb running')
+
         self.has_image = True
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
@@ -94,8 +90,6 @@ class TLDetector(object):
 	rospy.loginfo('image_cb running COLOR: %s', state)
 
 	print('image_cb running COLOR: ' + state)
-
-	img_name = './imgs/imgs' + str(self.picture_num)+'.jpg'
 	
 
         '''
@@ -126,13 +120,16 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-	rospy.loginfo('get_closest_waypoint running')
-	print('get_closest_waypoint running')
         return self.waypoint_tree.query([x,y], 1)[1]
 
-    def crop_image(self, closest_light):
-        img_name = './imgs/imgs' + str(self.picture_num) + '.jpg'
-        cv_img = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+    def crop_image(self, closest_light, cv_img):
+
+	base_dir = os.path.dirname(os.path.realpath(__file__))
+
+        rospy.loginfo('base_dir: %s', base_dir)
+	print base_dir
+        img_name = base_dir + '/imgs/imgs' + str(self.picture_num) + '.jpg'
+        img_name = base_dir + '/imgs/imgs' + str(self.picture_num) + '_crop.jpg'
         
         trans = None
         try:
@@ -164,8 +161,10 @@ class TLDetector(object):
         y = int(-traffic_p_car[2]/traffic_p_car[0]*f + img_height/2 + y_offset)
         cv2.rectangle(cv_img, (x,y), (x+img_width, y+img_height), (0,255,0),3)
         cv2.imwrite(img_name, cv_img)
+	img_cropped = cv_img[y:y+img_height,x:x+img_width]
+	cv2.imwrite(img_name, img_cropped)
         self.picture_num += 1
-        return cv_img
+        return img_cropped
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
@@ -178,17 +177,18 @@ class TLDetector(object):
 
         """
 
+	print 'test'
 	rospy.loginfo('Get light state called: %s', self.has_image)
 
         if(not self.has_image):
             self.prev_light_loc = None
             return False
 
-        cropped_camera_image = self.crop_image(light)
+        cv_img = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        cv_image = self.bridge.imgmsg_to_cv2(cropped_camera_image, "bgr8")
+        cropped_camera_image = self.crop_image(light, cv_img)
 
-        return self.light_classifier.get_classification(cv_image)
+        return self.light_classifier.get_classification(cropped_camera_image)
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -208,7 +208,7 @@ class TLDetector(object):
             
             diff = len(self.waypoints.waypoints)
             for i, light in enumerate(self.lights):
-                line = stop_line_position[i]
+                line = stop_line_positions[i]
                 temp_wp_idx = self.get_closest_waypoint(line[0],line[1])
 
                 d = temp_wp_idx - car_wp_idx
