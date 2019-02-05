@@ -11,6 +11,8 @@ import tf
 import cv2
 import yaml
 from scipy.spatial import KDTree
+import math
+import PyKDL
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -37,6 +39,11 @@ class TLDetector(object):
         '''
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
         sub6 = rospy.Subscriber('/image_color', Image, self.image_cb, queue_size=1)
+
+        ### for save image  ####
+        self.has_image = False
+        self.picture_num = 0
+        ############################
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
@@ -123,6 +130,43 @@ class TLDetector(object):
 	print('get_closest_waypoint running')
         return self.waypoint_tree.query([x,y], 1)[1]
 
+    def crop_image(self, closest_light):
+        img_name = './imgs/imgs' + str(self.picture_num) + '.jpg'
+        cv_img = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        
+        trans = None
+        try:
+            now = rospy.Time.now()
+            self.listener.waitForTransform("/base_link", "/world", now, rospy.Duration(1.0))
+            (trans, rot) = self.listener.lookupTransform("/base_link", "/world", now)
+        except (tf.Exception, tf.LookupException, tf.ConnectivityException):
+            rospy.logerr("Failed to find camera to map transform")
+
+        traffic_x = closest_light.pose.pose.position.x
+        traffic_y = closest_light.pose.pose.position.y
+        traffic_z = closest_light.pose.pose.position.z
+        traffic_point = PyKDL.Vector(traffic_x, traffic_y, traffic_z)
+        
+        Rotation = PyKDL.Rotation.Quaternion(*rot)
+        Translation = PyKDL.Vector(*trans)
+        traffic_p_car = Rotation*traffic_point + Translation
+        rospy.loginfo('---------')
+        rospy.loginfo(traffic_point)
+        rospy.loginfo(traffic_p_car)
+        
+        f = 2500
+        x_offset = 285
+        y_offset = 485
+        img_width  = 90
+        img_height = 190
+
+        x = int(-traffic_p_car[1]/traffic_p_car[0]*f + img_width/2 + x_offset)
+        y = int(-traffic_p_car[2]/traffic_p_car[0]*f + img_height/2 + y_offset)
+        cv2.rectangle(cv_img, (x,y), (x+img_width, y+img_height), (0,255,0),3)
+        cv2.imwrite(img_name, cv_img)
+        self.picture_num += 1
+        return cv_img
+
     def get_light_state(self, light):
         """Determines the current color of the traffic light
 
@@ -140,7 +184,9 @@ class TLDetector(object):
             self.prev_light_loc = None
             return False
 
-        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        cropped_camera_image = self.crop_image(light)
+
+        cv_image = self.bridge.imgmsg_to_cv2(cropped_camera_image, "bgr8")
 
         return self.light_classifier.get_classification(cv_image)
 
@@ -154,26 +200,26 @@ class TLDetector(object):
 
         """
         closest_light = None
-	line_wp_idx = None
+        line_wp_idx = None
 
-	stop_line_positions = self.config["stop_line_positions"]
-	if(self.pose):
-	    car_wp_idx = self.get_closest_waypoint(self.pose.pose.position.x, self.pose.pose.position.y)
-	    
-	    diff = len(self.waypoints.waypoints)
-	    for i, light in enumerate(self.lights):
-		line = stop_line_position[i]
-		temp_wp_idx = self.get_closest_waypoint(line[0],line[1])
+        stop_line_positions = self.config["stop_line_positions"]
+        if(self.pose):
+            car_wp_idx = self.get_closest_waypoint(self.pose.pose.position.x, self.pose.pose.position.y)
+            
+            diff = len(self.waypoints.waypoints)
+            for i, light in enumerate(self.lights):
+                line = stop_line_position[i]
+                temp_wp_idx = self.get_closest_waypoint(line[0],line[1])
 
-		d = temp_wp_idx - car_wp_idx
-		if d >= 0 and d < diff:
-		    diff = d
-		    closest_light = light
-		    line_wp_idx = temp_wp_idx
-		
-	if closest_light:
-	    state = self.get_light_state(closest_light)
-	    return line_wp_idx, state
+                d = temp_wp_idx - car_wp_idx
+                if d >= 0 and d < diff:
+                    diff = d
+                    closest_light = light
+                    line_wp_idx = temp_wp_idx
+            
+        if closest_light:
+            state = self.get_light_state(closest_light)
+            return line_wp_idx, state
 
 	return -1, TrafficLight.UNKNOWN
 if __name__ == '__main__':
