@@ -88,9 +88,8 @@ class TLDetector(object):
         light_wp, state = self.process_traffic_lights()
 
 	rospy.loginfo('image_cb running COLOR: %s', state)
-
-	print('image_cb running COLOR: ' + state)
-	
+	rospy.loginfo('image_cb running COLOR self.state: %s', self.state)
+	rospy.loginfo('image_cb running COLOR self.state_count: %s', self.state_count)
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -105,6 +104,7 @@ class TLDetector(object):
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
             self.last_wp = light_wp
+	    rospy.loginfo('red published %s', light_wp)
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
@@ -122,15 +122,8 @@ class TLDetector(object):
         """
         return self.waypoint_tree.query([x,y], 1)[1]
 
-    def crop_image(self, closest_light, cv_img):
-
-	base_dir = os.path.dirname(os.path.realpath(__file__))
-
-        rospy.loginfo('base_dir: %s', base_dir)
-	print base_dir
-        img_name = base_dir + '/imgs/imgs' + str(self.picture_num) + '.jpg'
-        img_name = base_dir + '/imgs/imgs' + str(self.picture_num) + '_crop.jpg'
-        
+    def crop_image(self, closest_light):
+        cv_img = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")      
         trans = None
         try:
             now = rospy.Time.now()
@@ -151,20 +144,28 @@ class TLDetector(object):
         rospy.loginfo(traffic_point)
         rospy.loginfo(traffic_p_car)
         
-        f = 2500
+        f = 2350
         x_offset = 285
-        y_offset = 485
+        y_offset = 455
         img_width  = 90
         img_height = 190
 
         x = int(-traffic_p_car[1]/traffic_p_car[0]*f + img_width/2 + x_offset)
         y = int(-traffic_p_car[2]/traffic_p_car[0]*f + img_height/2 + y_offset)
-        cv2.rectangle(cv_img, (x,y), (x+img_width, y+img_height), (0,255,0),3)
+        x = 0 if (x < 0) else x
+	y = 0 if (y < 0) else y
+
+	xmax = x+img_width if(x+img_width <= cv_img.shape[1]-1) else cv_img.shape[1]-1
+	ymax = y+img_height if(y+img_height <= cv_img.shape[0]-1) else cv_img.shape[0]-1
+	cv_img = cv_img[y:ymax, x:xmax].copy()
+        #cv2.rectangle(cv_img, (x,y), (x+img_width, y+img_height), (0,255,0),3)
+	rospy.loginfo('Image: %s', cv_img.shape)
+
+	base_dir = os.path.dirname(os.path.realpath(__file__))
+        img_name = base_dir + '/imgs/imgs' + str(self.picture_num) + '.jpg'
         cv2.imwrite(img_name, cv_img)
-	img_cropped = cv_img[y:y+img_height,x:x+img_width]
-	cv2.imwrite(img_name, img_cropped)
         self.picture_num += 1
-        return img_cropped
+        return cv_img
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
@@ -184,9 +185,7 @@ class TLDetector(object):
             self.prev_light_loc = None
             return False
 
-        cv_img = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-
-        cropped_camera_image = self.crop_image(light, cv_img)
+        cropped_camera_image = self.crop_image(light)
 
         return self.light_classifier.get_classification(cropped_camera_image)
 

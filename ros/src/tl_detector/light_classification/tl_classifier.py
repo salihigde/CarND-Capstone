@@ -3,6 +3,7 @@ from styx_msgs.msg import TrafficLight
 import os
 from io import BytesIO
 import numpy as np
+import tensorflow as tf
 import keras
 from keras.models import load_model
 import cv2
@@ -17,6 +18,7 @@ class TLClassifier(object):
 	os.chdir(base_dir)
 
 	self.model = load_model('model.h5')
+	self.graph = tf.get_default_graph()
 
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
@@ -28,14 +30,23 @@ class TLClassifier(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        img_resize = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+	img_copy = np.copy(image)
+        img_copy = cv2.cvtColor(img_copy, cv2.COLOR_BGR2RGB)
+	rospy.loginfo('Image: %s', img_copy.shape)
+
+	img_resize = cv2.resize(img_copy, (32, 32))
+	rospy.loginfo('Image R: %s', img_resize.shape)
 	img_resize = np.expand_dims(img_resize, axis=0).astype('float32')
+	rospy.loginfo('Image E: %s', img_resize.shape)
 
-	img_resize = (img_resize / 255 - 0.5)
+	img_resize = (img_resize / 255. - 0.5)
 
-	predict = self.model.predict(img_resize)
+	with self.graph.as_default():
+	      predict = self.model.predict(img_resize)
 
-	tl_color = self.sign_classes[np.argmax(predict)]
+	      rospy.loginfo('Prediction: %s', predict)
+
+	      tl_color = self.sign_classes[np.argmax(predict)]
 
 	rospy.loginfo('COLOR: %s', tl_color)
 	if tl_color == 'Red':
