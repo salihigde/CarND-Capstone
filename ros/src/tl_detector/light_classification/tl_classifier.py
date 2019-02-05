@@ -1,13 +1,20 @@
 from styx_msgs.msg import TrafficLight
 
+import os
+from io import BytesIO
 import numpy as np
 import keras
 from keras.models import load_model
 import cv2
+import rospy
+
+base_dir = os.path.dirname(os.path.realpath(__file__))
 
 class TLClassifier(object):
     def __init__(self):
 	self.sign_classes = ['Red', 'Green', 'Yellow']
+
+	os.chdir(base_dir)
 
 	self.model = load_model('model.h5')
 
@@ -30,6 +37,7 @@ class TLClassifier(object):
 
 	tl_color = self.sign_classes[np.argmax(predict)]
 
+	rospy.loginfo('COLOR: %s', tl_color)
 	if tl_color == 'Red':
 	      return TrafficLight.RED
 	elif tl_color == 'Green':
