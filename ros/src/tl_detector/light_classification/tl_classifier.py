@@ -30,9 +30,12 @@ class TLClassifier(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
+	if image.size <= 0:
+            return TrafficLight.UNKNOWN
+
 	img_copy = np.copy(image)
         img_copy = cv2.cvtColor(img_copy, cv2.COLOR_BGR2RGB)
-	rospy.loginfo('Image: %s', img_copy.shape)
+	rospy.loginfo('Image: %s', img_copy)
 
 	img_resize = cv2.resize(img_copy, (32, 32))
 	rospy.loginfo('Image R: %s', img_resize.shape)

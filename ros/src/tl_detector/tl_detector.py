@@ -161,9 +161,9 @@ class TLDetector(object):
         #cv2.rectangle(cv_img, (x,y), (x+img_width, y+img_height), (0,255,0),3)
 	rospy.loginfo('Image: %s', cv_img.shape)
 
-	base_dir = os.path.dirname(os.path.realpath(__file__))
-        img_name = base_dir + '/imgs/imgs' + str(self.picture_num) + '.jpg'
-        cv2.imwrite(img_name, cv_img)
+	#base_dir = os.path.dirname(os.path.realpath(__file__))
+        #img_name = base_dir + '/imgs/imgs' + str(self.picture_num) + '.jpg'
+        #cv2.imwrite(img_name, cv_img)
         self.picture_num += 1
         return cv_img
 
