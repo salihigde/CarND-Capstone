@@ -31,18 +31,16 @@ class TLClassifier(object):
 
         """
 	if image.size <= 0:
+	    rospy.loginfo('COLOR: unknown')
             return TrafficLight.UNKNOWN
 
 	img_copy = np.copy(image)
         img_copy = cv2.cvtColor(img_copy, cv2.COLOR_BGR2RGB)
-	rospy.loginfo('Image: %s', img_copy)
 
 	img_resize = cv2.resize(img_copy, (32, 32))
-	rospy.loginfo('Image R: %s', img_resize.shape)
 	img_resize = np.expand_dims(img_resize, axis=0).astype('float32')
-	rospy.loginfo('Image E: %s', img_resize.shape)
 
-	img_resize = (img_resize / 255. - 0.5)
+	img_resize = (img_resize / 255.)
 
 	with self.graph.as_default():
 	      predict = self.model.predict(img_resize)

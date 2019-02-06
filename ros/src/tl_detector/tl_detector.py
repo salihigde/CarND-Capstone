@@ -159,7 +159,6 @@ class TLDetector(object):
 	ymax = y+img_height if(y+img_height <= cv_img.shape[0]-1) else cv_img.shape[0]-1
 	cv_img = cv_img[y:ymax, x:xmax].copy()
         #cv2.rectangle(cv_img, (x,y), (x+img_width, y+img_height), (0,255,0),3)
-	rospy.loginfo('Image: %s', cv_img.shape)
 
 	#base_dir = os.path.dirname(os.path.realpath(__file__))
         #img_name = base_dir + '/imgs/imgs' + str(self.picture_num) + '.jpg'
