@@ -48,6 +48,7 @@ class TLDetector(object):
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
+	self.is_site = self.config['is_site']
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
@@ -215,7 +216,15 @@ class TLDetector(object):
                     closest_light = light
                     line_wp_idx = temp_wp_idx
             
-        if closest_light:
+	closest_light_x = closest_light.pose.pose.position.x
+	car_x = self.pose.pose.position.x
+	is_distance_valid = ((closest_light_x - car_x) < 100) and not self.is_site
+	# when closest_light is far away don't keep calling crop and classifier
+        if closest_light and is_distance_valid:
+	    rospy.loginfo('Self Pose x: %s', self.pose.pose.position.x)
+	    rospy.loginfo('Self Pose y: %s', self.pose.pose.position.y)
+	    rospy.loginfo('Light Pose x: %s', closest_light.pose.pose.position.x)
+	    rospy.loginfo('Light Pose y: %s', closest_light.pose.pose.position.y)
             state = self.get_light_state(closest_light)
             return line_wp_idx, state
 
